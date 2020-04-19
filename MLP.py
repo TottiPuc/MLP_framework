@@ -75,7 +75,7 @@ def topologia_sort(feed_dict):
             G[m]['in'].add(n)
             nodos.append(m)
     
-    L = {}
+    L = []
     S = set(input_nodos)
     while len(S) > 0:
         n = S.pop()
@@ -92,4 +92,44 @@ def topologia_sort(feed_dict):
     return L
     
     
+def forward_pass(output_node, sorted_nodes):
+    """
+    Ejecuta una pasada para frente a  través de una lista de nodos ordenados
+
+    Parameters
+    ----------
+    output_node : 
+        un nodo en el grafo, debe ser el nodo de salida
+    sorted_nodes : 
+        una lista topologiacmente ordenada de nodos
+
+    Returns
+    -------
+    el valor del nodo de salida
+
+    """
+    for n in sorted_nodes:
+        n.forward()
+        
+    return output_node.valor
+
+
+
+#ejecución del grafo
     
+# definimos los inputs
+x,y = Input() , Input()
+
+#llamamos la funcino add()
+f = Add(x,y)
+
+# definimos el feed_dict
+feed_dict = {x:7,y:8}
+
+#ordenamos las entradas para ejecución
+sorted_neurons = topologia_sort(feed_dict)
+
+#generamos la salida con un forward_pass
+output = forward_pass(f,sorted_neurons)
+
+print("{} + {} = {}".format(feed_dict[x],feed_dict[y],output))
