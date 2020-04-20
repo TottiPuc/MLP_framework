@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+import numpy as np
 #Clase para representar la estructura de grafos de un nodo genérico
 class Neuron(object):
     def __init__(self, nodos_entrada =[]):
@@ -21,6 +21,7 @@ class Neuron(object):
         -------
         
         """
+        #raise NotImplementedError
         
 #creo un subclase que herda de la clase principal NEuron
 class Input(Neuron):
@@ -34,18 +35,29 @@ class Input(Neuron):
         
         def forward(self,valor =None):
             # se sustityue el valor actual si un valor es pasado como parametro
-            if valor is not None:
-                self.valor=valor
-                
+            # if valor is not None:
+            #     self.valor=valor
+            pass
+        
 #subclase de Neuron para realizar calculos                
-class Add(Neuron):
-    def __init__(self,*inputs):
-        Neuron.__init__(self,inputs)
+# class Add(Neuron):
+#     def __init__(self,*inputs):
+#         Neuron.__init__(self,inputs)
+        
+#     def forward(self):
+#         x_value = self.nodos_entrada[0].valor
+#         y_value = self.nodos_entrada[1].valor
+#         self.valor = x_value + y_value
+        
+class Lineal(Neuron):
+    def __init__(self,X,W,b):
+        Neuron.__init__(self,[X,W,b])
         
     def forward(self):
-        x_value = self.nodos_entrada[0].valor
-        y_value = self.nodos_entrada[1].valor
-        self.valor = x_value + y_value
+        X = self.nodos_entrada[0].valor
+        W = self.nodos_entrada[1].valor
+        b = self.nodos_entrada[2].valor
+        self.valor = np.dot(X,W) + b
         
 def topologia_sort(feed_dict):
     """
@@ -109,6 +121,7 @@ def forward_pass(output_node, sorted_nodes):
 
     """
     for n in sorted_nodes:
+        print(n.valor)
         n.forward()
         
     return output_node.valor
@@ -118,18 +131,23 @@ def forward_pass(output_node, sorted_nodes):
 #ejecución del grafo
     
 # definimos los inputs
-x,y = Input() , Input()
+inputs , weights, bias = Input() , Input(), Input()
 
-#llamamos la funcino add()
-f = Add(x,y)
+#llamamos la funcino lineal()
+f = Lineal(inputs , weights, bias)
+
+#atribuyendo valores a los parametros
+x = np.array([[-2.,-1.],[-2,-4]])
+w = np.array([[4.,-6],[3.,-2]])
+b = np.array([-2.,-3])
 
 # definimos el feed_dict
-feed_dict = {x:7,y:8}
+feed_dict = {inputs :x , weights:w, bias:b}
 
 #ordenamos las entradas para ejecución
-sorted_neurons = topologia_sort(feed_dict)
+graph = topologia_sort(feed_dict)
 
 #generamos la salida con un forward_pass
-output = forward_pass(f,sorted_neurons)
+output = forward_pass(f,graph)
 
-print("{} + {} = {}".format(feed_dict[x],feed_dict[y],output))
+print(output)
