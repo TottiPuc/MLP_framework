@@ -7,26 +7,22 @@ class Neuron(object):
     Argumentos: nodos_entrada: una lista de nodos com  lineas para cada nodo
     """
     def __init__(self, nodos_entrada =[]):
-        #nodos que reciben las entradas
-        self.nodos_entrada = nodos_entrada
-        # nodos para los cuales se pasan los valores
-        self.nodos_salida = []
+        
+        self.nodos_entrada = nodos_entrada      # nodos que reciben las entradas
+        self.nodos_salida = []                  # nodos para los cuales se pasan los valores
+        self.valor = None                       # con el fin de actualizar al momento de retropropagar
+        self.gradientes = {}                    # almacenara las derivadas que seran usadas para actualizar los pesos
         #para cada nodod de entrada sera adicionado como un nodo de salida
         for n in self.nodos_entrada:
             n.nodos_salida.append(self)
-        self.valor = None # con el fin de actualizar al momento de retropropagar
-        
-    def forward(self):
-        """
-        forward propagation
 
-        calcular el valor de salida con  base en los nodos de entrada 
-        y se almacena el valor o resultado en self.valor
-        -------
-        
-        """
-        pass
-        
+    def forward(self):
+        raise NotImplementedError
+
+    def backward(self):
+        raise NotImplementedError
+    
+    
 #creo un subclase que herda de la clase principal NEuron
 class Input(Neuron):
     """
@@ -40,21 +36,18 @@ class Input(Neuron):
         #para la funcion forward, todos los demas nodos deben obtener el valor del nodo anterior
         #de self.nodos_entrada
         
-        def forward(self,valor =None):
-            # se sustityue el valor actual si un valor es pasado como parametro
-            # if valor is not None:
-            #     self.valor=valor
-            pass
+    def forward(self):
+        pass
+    
+    def backward(self):
+        #un nodo de entrada no posee inputs de este modo el gradiente o derivada es cero
+        self.gradientes = {self:0}
         
-#subclase de Neuron para realizar calculos                
-# class Add(Neuron):
-#     def __init__(self,*inputs):
-#         Neuron.__init__(self,inputs)
+        #Los pesos y bias pueden ser entradas, entonces es necesario sumar el gradiente, de los gradientes de salida
+        for n in self.nodos_salida:
+            grad_cost = n.gradientes[self]
+            self.gradientes[self] += grad_cost
         
-#     def forward(self):
-#         x_value = self.nodos_entrada[0].valor
-#         y_value = self.nodos_entrada[1].valor
-#         self.valor = x_value + y_value
         
 class Lineal(Neuron):
     """
@@ -69,6 +62,30 @@ class Lineal(Neuron):
         W = self.nodos_entrada[1].valor
         b = self.nodos_entrada[2].valor
         self.valor = np.dot(X,W) + b
+        
+    def backward(self):
+        """
+        Calcula el gradiente con base en los valores de salida
+        """
+        
+        #inicializa un valor parcial para cada nodo de entrada
+        self.gradientes = {n:np.zeros_like(n.valor) for n in self.nodos_entrada}
+        
+        # recorriendo las salidas
+        # el gradiente cambiara dependiendo de cada salida, entonces los gradientes son sumados en todas las salidas
+        for n in self.nodos_salida:
+            #obtener parcial del coste en relacion a este nodo
+            grad_cost = n.gradientes[self]
+            
+            #Definiendo la perdida parcial en relacion a los nodos de entrada
+            self.gradientes[self.nodos_entrada[0]] += np.dot(grad_cost, self.nodos_entrada[1].valor.T)
+            
+            #Definiendo la perdida parcial en relacion a los pesos de este nodo
+            self.gradientes[self.nodos_entrada[1]] += np.dot(self.nodos_entrada[0].valor.T,grad_cost)
+            
+            #Definiendo la perdida parcial en relacion a los bias de este nodo
+            self.gradientes[self.nodos_entrada[2]] += np.sum(grad_cost, axis = 0 , keepdims = False)
+            
         
         
 class Sigmoid(Neuron):
@@ -85,6 +102,22 @@ class Sigmoid(Neuron):
         input_value = self.nodos_entrada[0].valor
         self.valor = self._sigmoid(input_value)
         
+    def backward(self):
+    #Calcula el gradiente usando la derivada de la función sigmoide
+    #inicializa un valor parcial para cada nodo de entrada con 0
+        self.gradientes = {n:np.zeros_like(n.valor) for n in self.nodos_entrada}
+    
+        # recorriendo las salidas
+        # el gradiente cambiara dependiendo de cada salida, entonces los gradientes son sumados en todas las salidas
+        for n in self.nodos_salida:
+            #obtener parcial del coste en relacion a este nodo
+            grad_cost = n.gradientes[self]
+            sigmoid = self.valor
+            #Definiendo la perdida parcial en relacion a los nodos de entrada
+            self.gradientes[self.nodos_entrada[0]] += sigmoid * ( 1 - sigmoid) * grad_cost
+            
+        
+        
 class CostFunction(Neuron):
     def __init__(self,y,a):
         """
@@ -99,11 +132,18 @@ class CostFunction(Neuron):
         """
         y = self.nodos_entrada[0].valor.reshape(-1,1)
         a = self.nodos_entrada[1].valor.reshape(-1,1)
-        m = self.nodos_entrada[0].valor.shape[0]
+        self.m = self.nodos_entrada[0].valor.shape[0]
         
-        diff = y - a
-        self.valor = np.mean(diff**2)
-                        
+        self.diff = y - a
+        self.valor = np.mean(self.diff**2)
+    
+    def backward(self):
+        """
+        Calcula el gradiente de la funcion de coste
+        Este es el nodo final de la red para los nodos de salida
+        """
+        self.gradientes[self.nodos_entrada[0]] = ( 2 / self.m) * self.diff
+        self.gradientes[self.nodos_entrada[1]] = ( -2 / self.m) * self.diff
         
 def topologia_sort(feed_dict):
     """
@@ -150,58 +190,54 @@ def topologia_sort(feed_dict):
     return L
     
     
-def forward_pass(output_node, sorted_nodes):
+def forward_backward(graph):
     """
-    Ejecuta una pasada para frente a  través de una lista de nodos ordenados
-
-    Parameters
-    ----------
-    output_node : 
-        un nodo en el grafo, debe ser el nodo de salida
-    sorted_nodes : 
-        una lista topologiacmente ordenada de nodos
-
-    Returns
-    -------
-    el valor del nodo de salida
+    Ejecuta una pasada para adelante y una pasada para atras a través de una lista de nodos ordenados
 
     """
-    for n in sorted_nodes:
+    #forward pass
+    for n in graph:
         print(n.valor)
         n.forward()
         
-    return output_node.valor
+    # backward pass
+    # el valor negativo en el slice permite hacer una copia de  la mesma lista en orden inversa
+    for n in graph[::-1]:
+        n.backward()
+    
 
 
 
 #ejecución del grafo
     
 # definimos los inputs (todo esto es solo para inicializar nodos aqui nada tiene valor)
-inputs , weights, bias = Input() , Input(), Input()
+X , W, b = Input() , Input(), Input()
 y = Input()
 
 #llamamos la funcino lineal()
-f = Lineal(inputs , weights, bias)
-g = Sigmoid(f)
+f = Lineal(X , W, b)
+a = Sigmoid(f)
 
 #Función de coste
-cost = CostFunction(y,g)
+cost = CostFunction(y,a)
 
 #atribuyendo valores a los parametros
-x = np.array([[-2.,-1.],[-2,-4]])
-w = np.array([[4.,-6],[3.,-2]])
-b = np.array([-2.,-3])
-
-#valores de salida originales
-array_y = np.array([[-4.,-2.],[-1,-3]])
+entradas = np.array([[-1., -2.], [-1, -2]])
+pesos = np.array([[2.], [3.]])
+bias = np.array([-3.])
+salida = np.array([1, 2])
 
 # definimos el feed_dict
-feed_dict = {inputs :x , weights:w, bias:b, y: array_y}
+feed_dict = {X :entradas , y:salida, W:pesos, b:bias}
 
 #ordenamos las entradas para ejecución
 graph = topologia_sort(feed_dict)
 
-#generamos la salida con un forward_pass
-output = forward_pass(cost,graph)
+#forward e backward
+forward_backward(graph)
 
-print(output)
+# retorna los gradientes de cada input
+gradientes = [t.gradientes[t] for t in [X, y, W, b]]
+
+
+print(gradientes)
