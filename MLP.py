@@ -2,6 +2,10 @@
 import numpy as np
 #Clase para representar la estructura de grafos de un nodo genérico
 class Neuron(object):
+    """ 
+    Clase base para los nodos de la red
+    Argumentos: nodos_entrada: una lista de nodos com  lineas para cada nodo
+    """
     def __init__(self, nodos_entrada =[]):
         #nodos que reciben las entradas
         self.nodos_entrada = nodos_entrada
@@ -21,10 +25,13 @@ class Neuron(object):
         -------
         
         """
-        #raise NotImplementedError
+        pass
         
 #creo un subclase que herda de la clase principal NEuron
 class Input(Neuron):
+    """
+    una entrada generica en la red
+    """
     def __init__(self):
         #un nodo de entrada no posee neurones de entrada
         #por esta razon no es necesario pasar nada pa instanciar la clase 
@@ -50,7 +57,11 @@ class Input(Neuron):
 #         self.valor = x_value + y_value
         
 class Lineal(Neuron):
+    """
+    Representa un nodo que ejecuta una transformacion lineal
+    """
     def __init__(self,X,W,b):
+        # el constructo de la calse base (nodo). pesos y bias son tratados como nodos de entrada
         Neuron.__init__(self,[X,W,b])
         
     def forward(self):
@@ -58,6 +69,41 @@ class Lineal(Neuron):
         W = self.nodos_entrada[1].valor
         b = self.nodos_entrada[2].valor
         self.valor = np.dot(X,W) + b
+        
+        
+class Sigmoid(Neuron):
+    """
+    Representa un nodo que ejecuta la funcion de activacion sigmoid
+    """
+    def __init__(self,nodo):
+        Neuron.__init__(self,[nodo])
+        
+    def _sigmoid(self,x): # 
+        return 1./(1. + np.exp(-x))
+    
+    def forward(self):
+        input_value = self.nodos_entrada[0].valor
+        self.valor = self._sigmoid(input_value)
+        
+class CostFunction(Neuron):
+    def __init__(self,y,a):
+        """
+        Funcion de coste del error medio cuadratico que es usado como ultimo nodo de la red
+        donde y es el valor original y el valor de a es la prediccion en cada pasada
+        """
+        Neuron.__init__(self,[y,a])
+    def forward(self):
+        """
+        Calculo del error cuadratico medio
+        conviertiendo los array (3,1 para evitar problemas )
+        """
+        y = self.nodos_entrada[0].valor.reshape(-1,1)
+        a = self.nodos_entrada[1].valor.reshape(-1,1)
+        m = self.nodos_entrada[0].valor.shape[0]
+        
+        diff = y - a
+        self.valor = np.mean(diff**2)
+                        
         
 def topologia_sort(feed_dict):
     """
@@ -130,24 +176,32 @@ def forward_pass(output_node, sorted_nodes):
 
 #ejecución del grafo
     
-# definimos los inputs
+# definimos los inputs (todo esto es solo para inicializar nodos aqui nada tiene valor)
 inputs , weights, bias = Input() , Input(), Input()
+y = Input()
 
 #llamamos la funcino lineal()
 f = Lineal(inputs , weights, bias)
+g = Sigmoid(f)
+
+#Función de coste
+cost = CostFunction(y,g)
 
 #atribuyendo valores a los parametros
 x = np.array([[-2.,-1.],[-2,-4]])
 w = np.array([[4.,-6],[3.,-2]])
 b = np.array([-2.,-3])
 
+#valores de salida originales
+array_y = np.array([[-4.,-2.],[-1,-3]])
+
 # definimos el feed_dict
-feed_dict = {inputs :x , weights:w, bias:b}
+feed_dict = {inputs :x , weights:w, bias:b, y: array_y}
 
 #ordenamos las entradas para ejecución
 graph = topologia_sort(feed_dict)
 
 #generamos la salida con un forward_pass
-output = forward_pass(f,graph)
+output = forward_pass(cost,graph)
 
 print(output)
